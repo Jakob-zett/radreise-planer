@@ -1,0 +1,7 @@
+# Radreise-Planer – Netlify-Konfiguration
+# Service Worker darf nicht lange im Browser-Cache liegen,
+# damit App-Updates zuverlässig ankommen.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
