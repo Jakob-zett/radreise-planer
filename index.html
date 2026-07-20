@@ -212,6 +212,10 @@
     .map-container.resizing { transition: none; }
     .map-container:not(.resizing) { transition: height 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
     .split-handle { display: flex; }
+    .sidebar-header,
+    .stats-bar,
+    .progress-track,
+    .tabs { touch-action: none; }
     .sidebar-header { padding: 6px 16px 10px; }
     .sidebar-header h1 { font-size: 15px; }
     .sidebar-header p { display: none; }
@@ -820,45 +824,53 @@ function initMobileSplit() {
   ].filter(Boolean);
 
   dragEls.forEach(el => {
+    let pending = false;
     let dragging = false;
+    let startY = 0;
     let lastY = 0;
     let lastT = 0;
     let velocity = 0;
 
     const onMove = e => {
-      if (!dragging) return;
+      if (!pending && !dragging) return;
       const y = e.clientY;
       const t = performance.now();
+      if (!dragging) {
+        if (Math.abs(y - startY) < 8) return;
+        dragging = true;
+        beginResize();
+      }
       const dy = y - lastY;
       const dt = Math.max(t - lastT, 1);
       velocity = pxToDvh(dy) / dt;
       lastY = y;
       lastT = t;
       applyDragDelta(dy);
+      e.preventDefault();
     };
 
     const onEnd = () => {
-      if (!dragging) return;
+      const wasDragging = dragging;
+      pending = false;
       dragging = false;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onEnd);
       window.removeEventListener('pointercancel', onEnd);
-      snapMapHeight(-velocity * 16);
+      if (wasDragging) snapMapHeight(-velocity * 16);
     };
 
     el.addEventListener('pointerdown', e => {
       if (!isMobileSplit() || e.button) return;
       if (e.target.closest && e.target.closest('a, button')) return;
-      dragging = true;
-      lastY = e.clientY;
+      pending = true;
+      dragging = false;
+      startY = lastY = e.clientY;
       lastT = performance.now();
       velocity = 0;
-      beginResize();
       el.setPointerCapture?.(e.pointerId);
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onEnd);
       window.addEventListener('pointercancel', onEnd);
-      e.preventDefault();
     });
   });
 
