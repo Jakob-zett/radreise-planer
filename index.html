@@ -163,6 +163,7 @@
   .leaflet-popup-content .popup-highlight { color: #fbbf24; }
   .leaflet-popup-content .popup-food { color: #fb923c; }
   .leaflet-popup-content .popup-swim { color: #38bdf8; }
+  .leaflet-popup-content .popup-sauna { color: #fb923c; }
   .leaflet-popup-content .popup-cost { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
   .leaflet-popup-content .popup-free { background: #064e3b; color: #34d399; }
   .leaflet-popup-content .popup-cheap { background: #422006; color: #fbbf24; }
@@ -179,34 +180,39 @@
     justify-content: center;
     align-items: center;
     flex-shrink: 0;
-    padding: 10px 0 6px;
+    padding: 12px 0 8px;
     cursor: grab;
     touch-action: none;
     user-select: none;
+    -webkit-user-select: none;
   }
   .split-handle:active { cursor: grabbing; }
   .split-handle::before {
     content: '';
-    width: 40px;
-    height: 4px;
-    border-radius: 2px;
-    background: #475569;
+    width: 44px;
+    height: 5px;
+    border-radius: 3px;
+    background: #64748b;
   }
 
   /* Responsive */
   @media (max-width: 900px) {
     .app { flex-direction: column-reverse; }
-    .sidebar { width: 100%; min-width: 0; flex: 1; height: auto; min-height: 0; }
+    .sidebar {
+      width: 100%; min-width: 0; flex: 1; height: auto; min-height: 0;
+      border-right: none; border-top: 1px solid #334155;
+      border-radius: 16px 16px 0 0;
+      position: relative; z-index: 2;
+    }
     .map-container {
-      height: var(--map-h, 44dvh);
+      height: var(--map-h, 42dvh);
       flex: none;
-      min-height: 10dvh;
-      max-height: 78dvh;
+      min-height: 0;
     }
     .map-container.resizing { transition: none; }
-    .map-container:not(.resizing) { transition: height 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+    .map-container:not(.resizing) { transition: height 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
     .split-handle { display: flex; }
-    .sidebar-header { padding: 10px 16px; padding-bottom: 10px; }
+    .sidebar-header { padding: 6px 16px 10px; }
     .sidebar-header h1 { font-size: 15px; }
     .sidebar-header p { display: none; }
     .header-links { margin-top: 6px; }
@@ -223,7 +229,19 @@
     .map-legend { display: none; bottom: 60px; right: 12px; padding: 10px 14px; }
     .map-legend.open { display: block; }
     .legend-toggle { display: flex; }
-    .stage-list { padding-bottom: max(8px, env(safe-area-inset-bottom)); overscroll-behavior-y: none; }
+    .stage-list {
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    /* Map nearly fullscreen: hide list chrome, keep handle */
+    .app.sheet-map .sidebar-header,
+    .app.sheet-map .stats-bar,
+    .app.sheet-map .progress-track,
+    .app.sheet-map .tabs { display: none; }
+    .app.sheet-map .stage-list { display: none; }
+    .app.sheet-map .sidebar { flex: 0 0 auto; min-height: 0; }
+    .app.sheet-map .split-handle { padding: 18px 0 20px; }
   }
 </style>
 </head>
@@ -712,16 +730,19 @@ function init() {
   updateStats();
   initTabs();
   initMobileSplit();
-  const nextCard = document.querySelector('.stage-card.next');
-  if (nextCard) nextCard.scrollIntoView({ block: 'start' });
+  // Auf Mobile nicht vorscrollen – sonst blockiert scrollTop>0 das Sheet-Resize am oberen Rand
+  if (!isMobileSplit()) {
+    const nextCard = document.querySelector('.stage-card.next');
+    if (nextCard) nextCard.scrollIntoView({ block: 'start' });
+  }
 }
 
-/* Mobile: scroll/drag adjusts map vs list height toward fullscreen */
-const MAP_H_MIN = 12;
-const MAP_H_MAX = 72;
-const MAP_H_DEFAULT = 44;
-const MAP_H_SNAPS = [MAP_H_MIN, MAP_H_DEFAULT, MAP_H_MAX];
-let mapH = MAP_H_DEFAULT;
+/* Mobile: bottom-sheet split between map and list */
+const MAP_LIST = 8;    // Liste fast fullscreen
+const MAP_SPLIT = 42;  // geteilt
+const MAP_FULL = 92;   // Karte fast fullscreen (nur Handle)
+const MAP_SNAPS = [MAP_LIST, MAP_SPLIT, MAP_FULL];
+let mapH = MAP_SPLIT;
 let mapResizeRaf = null;
 
 function isMobileSplit() {
@@ -729,16 +750,22 @@ function isMobileSplit() {
 }
 
 function pxToDvh(px) {
-  return (px / window.innerHeight) * 100;
+  return (px / Math.max(window.innerHeight, 1)) * 100;
+}
+
+function syncSheetMode() {
+  const app = document.querySelector('.app');
+  if (!app) return;
+  app.classList.toggle('sheet-map', isMobileSplit() && mapH >= (MAP_SPLIT + MAP_FULL) / 2);
 }
 
 function setMapHeight(vh, { animate = false } = {}) {
-  mapH = Math.max(MAP_H_MIN, Math.min(MAP_H_MAX, vh));
+  mapH = Math.max(MAP_LIST, Math.min(MAP_FULL, vh));
   const mapEl = document.querySelector('.map-container');
   if (!mapEl) return;
-  if (!animate) mapEl.classList.add('resizing');
-  else mapEl.classList.remove('resizing');
+  mapEl.classList.toggle('resizing', !animate);
   document.documentElement.style.setProperty('--map-h', mapH + 'dvh');
+  syncSheetMode();
   if (mapResizeRaf) cancelAnimationFrame(mapResizeRaf);
   mapResizeRaf = requestAnimationFrame(() => {
     if (map) map.invalidateSize({ animate: false });
@@ -746,127 +773,183 @@ function setMapHeight(vh, { animate = false } = {}) {
   });
 }
 
-function snapMapHeight() {
-  let best = MAP_H_SNAPS[0];
-  let bestDist = Infinity;
-  MAP_H_SNAPS.forEach(s => {
-    const d = Math.abs(s - mapH);
-    if (d < bestDist) { bestDist = d; best = s; }
-  });
-  setMapHeight(best, { animate: true });
+function snapMapHeight(velocityDvh = 0) {
+  // velocity: positive = expanding map, negative = collapsing map
+  let target;
+  if (Math.abs(velocityDvh) > 0.35) {
+    if (velocityDvh > 0) {
+      target = MAP_SNAPS.find(s => s > mapH + 0.5) ?? MAP_FULL;
+    } else {
+      target = [...MAP_SNAPS].reverse().find(s => s < mapH - 0.5) ?? MAP_LIST;
+    }
+  } else {
+    target = MAP_SNAPS.reduce((best, s) =>
+      Math.abs(s - mapH) < Math.abs(best - mapH) ? s : best
+    );
+  }
+  setMapHeight(target, { animate: true });
 }
 
 function initMobileSplit() {
-  setMapHeight(MAP_H_DEFAULT, { animate: false });
+  setMapHeight(MAP_SPLIT, { animate: false });
   document.querySelector('.map-container')?.classList.remove('resizing');
 
+  const app = document.querySelector('.app');
+  const handle = document.getElementById('splitHandle');
   const lists = [
     document.getElementById('stageList'),
     document.getElementById('infoPanel')
   ].filter(Boolean);
-  const handle = document.getElementById('splitHandle');
 
-  function onListGesture(el, dy) {
-    // dy > 0: Finger nach unten → am Listenanfang Karte vergrößern
-    // dy < 0: Finger nach oben / Scroll runter → Karte erst verkleinern, dann Liste scrollen
-    if (dy < 0 && mapH > MAP_H_MIN) {
-      setMapHeight(mapH + pxToDvh(dy));
-      return true;
-    }
-    if (dy > 0 && el.scrollTop <= 1 && mapH < MAP_H_MAX) {
-      setMapHeight(mapH + pxToDvh(dy));
-      return true;
-    }
-    return false;
+  function beginResize() {
+    document.querySelector('.map-container')?.classList.add('resizing');
   }
 
+  function applyDragDelta(dyPx) {
+    // Finger/handle nach unten → Liste größer → Karte kleiner
+    setMapHeight(mapH - pxToDvh(dyPx));
+  }
+
+  // --- Sheet-Chrome (Handle/Header/Stats/Tabs): ziehen = Resize ---
+  const dragEls = [
+    handle,
+    document.querySelector('.sidebar-header'),
+    document.querySelector('.stats-bar'),
+    document.querySelector('.progress-track'),
+    document.querySelector('.tabs')
+  ].filter(Boolean);
+
+  dragEls.forEach(el => {
+    let dragging = false;
+    let lastY = 0;
+    let lastT = 0;
+    let velocity = 0;
+
+    const onMove = e => {
+      if (!dragging) return;
+      const y = e.clientY;
+      const t = performance.now();
+      const dy = y - lastY;
+      const dt = Math.max(t - lastT, 1);
+      velocity = pxToDvh(dy) / dt;
+      lastY = y;
+      lastT = t;
+      applyDragDelta(dy);
+    };
+
+    const onEnd = () => {
+      if (!dragging) return;
+      dragging = false;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      snapMapHeight(-velocity * 16);
+    };
+
+    el.addEventListener('pointerdown', e => {
+      if (!isMobileSplit() || e.button) return;
+      if (e.target.closest && e.target.closest('a, button')) return;
+      dragging = true;
+      lastY = e.clientY;
+      lastT = performance.now();
+      velocity = 0;
+      beginResize();
+      el.setPointerCapture?.(e.pointerId);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onEnd);
+      window.addEventListener('pointercancel', onEnd);
+      e.preventDefault();
+    });
+  });
+
+  // --- Liste: normales Scrollen; nur Pull-down am Anfang → mehr Karte ---
   lists.forEach(el => {
-    let lastY = null;
-    let gesturing = false;
+    let startY = 0;
+    let lastY = 0;
+    let lastT = 0;
+    let velocity = 0;
+    let mode = null;
+    let active = false;
 
     el.addEventListener('touchstart', e => {
-      if (!isMobileSplit()) return;
-      lastY = e.touches[0].clientY;
-      gesturing = false;
-      document.querySelector('.map-container')?.classList.add('resizing');
+      if (!isMobileSplit() || e.touches.length !== 1) return;
+      active = true;
+      mode = null;
+      startY = lastY = e.touches[0].clientY;
+      lastT = performance.now();
+      velocity = 0;
     }, { passive: true });
 
     el.addEventListener('touchmove', e => {
-      if (!isMobileSplit() || lastY == null) return;
+      if (!isMobileSplit() || !active || e.touches.length !== 1) return;
       const y = e.touches[0].clientY;
+      const t = performance.now();
       const dy = y - lastY;
+      const totalDy = y - startY;
+      const dt = Math.max(t - lastT, 1);
+      velocity = pxToDvh(dy) / dt;
       lastY = y;
-      if (Math.abs(dy) < 0.5) return;
-      if (onListGesture(el, dy)) {
-        gesturing = true;
+      lastT = t;
+
+      if (!mode) {
+        if (Math.abs(totalDy) < 8) return;
+        // Nur am Listenanfang nach unten ziehen → Karte vergrößern
+        if (el.scrollTop <= 0 && totalDy > 0 && mapH < MAP_FULL) {
+          mode = 'resize';
+          beginResize();
+        } else {
+          mode = 'scroll';
+        }
+      }
+
+      if (mode === 'resize') {
+        applyDragDelta(dy);
         e.preventDefault();
       }
     }, { passive: false });
 
-    el.addEventListener('touchend', () => {
-      lastY = null;
-      if (gesturing) snapMapHeight();
-      gesturing = false;
-    }, { passive: true });
+    const endTouch = () => {
+      if (!active) return;
+      active = false;
+      if (mode === 'resize') snapMapHeight(-velocity * 16);
+      mode = null;
+    };
+    el.addEventListener('touchend', endTouch, { passive: true });
+    el.addEventListener('touchcancel', endTouch, { passive: true });
 
-    let wheelSnapTimer = null;
+    let wheelTimer = null;
     el.addEventListener('wheel', e => {
       if (!isMobileSplit()) return;
-      // deltaY > 0 = scroll down → shrink map first
-      if (e.deltaY > 0 && mapH > MAP_H_MIN) {
-        setMapHeight(mapH - pxToDvh(e.deltaY));
+      if (el.scrollTop > 0) return;
+      // Trackpad/Maus: nach oben scrollen am Anfang → mehr Karte
+      if (e.deltaY < 0 && mapH < MAP_FULL) {
+        applyDragDelta(e.deltaY);
         e.preventDefault();
-        clearTimeout(wheelSnapTimer);
-        wheelSnapTimer = setTimeout(snapMapHeight, 160);
-      } else if (e.deltaY < 0 && el.scrollTop <= 1 && mapH < MAP_H_MAX) {
-        setMapHeight(mapH - pxToDvh(e.deltaY));
-        e.preventDefault();
-        clearTimeout(wheelSnapTimer);
-        wheelSnapTimer = setTimeout(snapMapHeight, 160);
+        clearTimeout(wheelTimer);
+        wheelTimer = setTimeout(() => snapMapHeight(0), 140);
       }
     }, { passive: false });
   });
 
+  // Tippen auf die schmale Handle-Leiste reicht; zusätzlich: Doppeltipp auf Handle toggled
   if (handle) {
-    let dragging = false;
-    let lastY = null;
-
-    const onPointerMove = e => {
-      if (!dragging || lastY == null) return;
-      const dy = e.clientY - lastY;
-      lastY = e.clientY;
-      // Drag handle down → list grows (map shrinks); up → map grows
-      setMapHeight(mapH - pxToDvh(dy));
-    };
-
-    const endDrag = () => {
-      if (!dragging) return;
-      dragging = false;
-      lastY = null;
-      handle.releasePointerCapture?.(handle._pointerId);
-      snapMapHeight();
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', endDrag);
-      window.removeEventListener('pointercancel', endDrag);
-    };
-
-    handle.addEventListener('pointerdown', e => {
+    let lastTap = 0;
+    handle.addEventListener('click', () => {
       if (!isMobileSplit()) return;
-      dragging = true;
-      lastY = e.clientY;
-      handle._pointerId = e.pointerId;
-      handle.setPointerCapture?.(e.pointerId);
-      document.querySelector('.map-container')?.classList.add('resizing');
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', endDrag);
-      window.addEventListener('pointercancel', endDrag);
-      e.preventDefault();
+      const now = Date.now();
+      if (now - lastTap < 320) {
+        if (mapH >= MAP_FULL - 1) setMapHeight(MAP_LIST, { animate: true });
+        else if (mapH <= MAP_LIST + 1) setMapHeight(MAP_FULL, { animate: true });
+        else setMapHeight(MAP_FULL, { animate: true });
+      }
+      lastTap = now;
     });
   }
 
   window.addEventListener('resize', () => {
     if (!isMobileSplit()) {
       document.documentElement.style.removeProperty('--map-h');
+      app?.classList.remove('sheet-map');
       return;
     }
     setMapHeight(mapH, { animate: false });
@@ -891,20 +974,16 @@ function createIcon(cls, content) {
   });
 }
 
-/** Google Maps Place-URL – Ortsname zuerst, damit Fotos & Place-Card erscheinen */
+/** Google Maps URL – Koordinaten zuerst, sonst landet die Suche an falschen Orten */
 function gmapsUrl(coords, name) {
-  if (name) {
-    const place = encodeURIComponent(name.trim());
-    // /place/NAME/@lat,lng öffnet die Ortsseite (Bilder, Bewertungen), nicht nur den Pin
-    if (coords && coords.length >= 2) {
-      const [lat, lng] = coords;
-      return `https://www.google.com/maps/place/${place}/@${lat},${lng},16z`;
-    }
-    return `https://www.google.com/maps/search/?api=1&query=${place}`;
-  }
   if (coords && coords.length >= 2) {
     const [lat, lng] = coords;
-    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    // query=lat,lng öffnet immer den Pin an genau diesen Koordinaten.
+    // /place/NAME/@… sucht den Namen und ignoriert oft die Position (z.B. Krakow → Polen).
+    return `https://www.google.com/maps/search/?api=1&query=${lat}%2C${lng}`;
+  }
+  if (name) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name.trim())}`;
   }
   return '#';
 }
