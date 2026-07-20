@@ -114,6 +114,14 @@
   .btn-komoot { border-color: #3d5a2b; color: #8ccc57; }
   .btn-komoot:hover { background: #2a3d1e; color: #a3e267; }
 
+  .maps-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-top: 6px; font-size: 11px; font-weight: 600;
+    color: #38bdf8; text-decoration: none;
+  }
+  .maps-link:hover { color: #7dd3fc; text-decoration: underline; }
+  .leaflet-popup-content .maps-link { margin-top: 8px; }
+
   /* Map */
   .map-container { flex: 1; position: relative; }
   #map { width: 100%; height: 100%; background: #0f172a; }
@@ -643,6 +651,18 @@ function createIcon(cls, content) {
   });
 }
 
+/** Google Maps URL aus Koordinaten – öffnet Ort in der Maps-App */
+function gmapsUrl(coords) {
+  if (!coords || coords.length < 2) return '#';
+  const [lat, lng] = coords;
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
+
+function mapsLinkHtml(coords, name) {
+  if (!coords || coords.length < 2) return '';
+  return `<a class="maps-link" href="${gmapsUrl(coords)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 In Google Maps öffnen</a>`;
+}
+
 function toggleLayer(layer) {
   layerVisibility[layer] = !layerVisibility[layer];
   const btn = document.querySelector(`.toggle-btn[data-layer="${layer}"]`);
@@ -675,21 +695,22 @@ function renderRoute() {
     // Start marker
     if (i === 0) {
       const m = L.marker(s.coords.from, { icon: createIcon('marker-stage', '🚂') })
-        .bindPopup(`<b>Start: ${s.from}</b><br>RE5 ab Berlin Hbf (30 Min.)`)
+        .bindPopup(`<b>Start: ${s.from}</b><br>RE5 ab Berlin Hbf (30 Min.)<br>${mapsLinkHtml(s.coords.from, s.from)}`)
         .addTo(map);
       markerLayers.route.push(m);
     }
 
     // Stage end / ferry marker
     if (s.country === 'ferry') {
-      const m = L.marker([54.37, 12.01], { icon: createIcon('marker-ferry', '⛴') })
-        .bindPopup(`<b>Fähre Rostock → Gedser</b><br>Scandlines, ~2h, Rad ~3 € Aufpreis`)
+      const ferryCoords = [54.37, 12.01];
+      const m = L.marker(ferryCoords, { icon: createIcon('marker-ferry', '⛴') })
+        .bindPopup(`<b>Fähre Rostock → Gedser</b><br>Scandlines, ~2h, Rad ~3 € Aufpreis<br>${mapsLinkHtml(ferryCoords, 'Fähre Rostock Warnemünde')}`)
         .addTo(map);
       markerLayers.route.push(m);
     } else {
       const cls = expandedStage === String(s.id) ? 'marker-active' : 'marker-stage';
       const m = L.marker(s.coords.to, { icon: createIcon(cls, s.id) })
-        .bindPopup(`<b>Etappe ${s.id}: ${s.from} → ${s.to}</b><br>${s.km} km – ${s.desc}`)
+        .bindPopup(`<b>Etappe ${s.id}: ${s.from} → ${s.to}</b><br>${s.km} km – ${s.desc}<br>${mapsLinkHtml(s.coords.to, s.to)}`)
         .addTo(map);
       m.on('click', () => toggleStage(s.id));
       markerLayers.route.push(m);
@@ -702,7 +723,7 @@ function renderRoute() {
       const cIcon = c.type === 'shelter' ? '⛺' : '🏕';
       const costCls = c.cost === 'Kostenlos' ? 'popup-free' : 'popup-cheap';
       const m = L.marker(c.coords, { icon: createIcon(cType, cIcon) })
-        .bindPopup(`<b>${c.name}</b><br>${c.desc}<br><span class="popup-cost ${costCls}">${c.cost}</span>`);
+        .bindPopup(`<b>${c.name}</b><br>${c.desc}<br><span class="popup-cost ${costCls}">${c.cost}</span><br>${mapsLinkHtml(c.coords, c.name)}`);
       if (layerVisibility.camps) m.addTo(map);
       markerLayers.camps.push(m);
     });
@@ -710,7 +731,7 @@ function renderRoute() {
     // Highlight markers
     if (s.highlights) s.highlights.forEach(h => {
       const m = L.marker(h.coords, { icon: createIcon('marker-highlight', h.icon) })
-        .bindPopup(`<b class="popup-highlight">${h.name}</b><br>${h.desc}`);
+        .bindPopup(`<b class="popup-highlight">${h.name}</b><br>${h.desc}<br>${mapsLinkHtml(h.coords, h.name)}`);
       if (layerVisibility.highlights) m.addTo(map);
       markerLayers.highlights.push(m);
     });
@@ -718,7 +739,7 @@ function renderRoute() {
     // Food markers
     if (s.food) s.food.forEach(f => {
       const m = L.marker(f.coords, { icon: createIcon('marker-food', f.icon) })
-        .bindPopup(`<b class="popup-food">${f.name}</b><br>${f.desc}`);
+        .bindPopup(`<b class="popup-food">${f.name}</b><br>${f.desc}<br>${mapsLinkHtml(f.coords, f.name)}`);
       if (layerVisibility.food) m.addTo(map);
       markerLayers.food.push(m);
     });
@@ -726,15 +747,16 @@ function renderRoute() {
     // Swim markers
     if (s.swim) s.swim.forEach(sw => {
       const m = L.marker(sw.coords, { icon: createIcon('marker-swim', '🏊') })
-        .bindPopup(`<b class="popup-swim">${sw.name}</b><br>${sw.desc}`);
+        .bindPopup(`<b class="popup-swim">${sw.name}</b><br>${sw.desc}<br>${mapsLinkHtml(sw.coords, sw.name)}`);
       if (layerVisibility.swim) m.addTo(map);
       markerLayers.swim.push(m);
     });
   });
 
   // Copenhagen finish marker
-  const cph = L.marker([55.676, 12.568], { icon: createIcon('marker-stage', '🏁') })
-    .bindPopup('<b>Kopenhagen!</b><br>Geschafft! 🎉')
+  const cphCoords = [55.676, 12.568];
+  const cph = L.marker(cphCoords, { icon: createIcon('marker-stage', '🏁') })
+    .bindPopup(`<b>Kopenhagen!</b><br>Geschafft! 🎉<br>${mapsLinkHtml(cphCoords, 'Kopenhagen')}`)
     .addTo(map);
   markerLayers.route.push(cph);
 }
@@ -771,6 +793,7 @@ function renderStages() {
             <div class="camp-info">
               <div class="camp-name">${h.name}</div>
               <div class="camp-desc">${h.desc}</div>
+              ${mapsLinkHtml(h.coords, h.name)}
             </div>
           </div>
         `).join('')}
@@ -786,6 +809,7 @@ function renderStages() {
             <div class="camp-info">
               <div class="camp-name">${f.name}</div>
               <div class="camp-desc">${f.desc}</div>
+              ${mapsLinkHtml(f.coords, f.name)}
             </div>
           </div>
         `).join('')}
@@ -801,6 +825,7 @@ function renderStages() {
             <div class="camp-info">
               <div class="camp-name" style="color:#38bdf8;">${sw.name}</div>
               <div class="camp-desc">${sw.desc}</div>
+              ${mapsLinkHtml(sw.coords, sw.name)}
             </div>
           </div>
         `).join('')}
@@ -839,6 +864,7 @@ function renderStages() {
               <div class="camp-info">
                 <div class="camp-name">${c.name}</div>
                 <div class="camp-desc">${c.desc}</div>
+                ${mapsLinkHtml(c.coords, c.name)}
               </div>
               <div class="camp-cost ${c.cost === 'Kostenlos' ? 'free' : 'cheap'}">${c.cost}</div>
             </div>
