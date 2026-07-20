@@ -1,7 +1,7 @@
 // Radreise-Planer – Offline-Cache
 // Cacht die App selbst, Leaflet (CDN) und alle besuchten Karten-Tiles,
 // damit unterwegs im Funkloch zumindest bereits gesehene Kartenausschnitte funktionieren.
-const APP_CACHE = 'radreise-app-v3';
+const APP_CACHE = 'radreise-app-v4';
 const STATIC_CACHE = 'radreise-static-v1';
 
 self.addEventListener('install', () => self.skipWaiting());

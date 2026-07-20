@@ -148,6 +148,7 @@
   .marker-highlight { width: 22px; height: 22px; background: linear-gradient(135deg, #f59e0b, #ef4444); font-size: 13px; border-color: #fbbf24; }
   .marker-food { width: 22px; height: 22px; background: linear-gradient(135deg, #ef4444, #f97316); font-size: 13px; border-color: #fb923c; }
   .marker-swim { width: 22px; height: 22px; background: linear-gradient(135deg, #06b6d4, #3b82f6); font-size: 13px; border-color: #38bdf8; }
+  .marker-sauna { width: 22px; height: 22px; background: linear-gradient(135deg, #f97316, #dc2626); font-size: 13px; border-color: #fb923c; }
   .marker-active { width: 34px; height: 34px; background: linear-gradient(135deg, #ec4899, #8b5cf6); animation: pulse 2s infinite; }
 
   @keyframes pulse {
@@ -309,6 +310,7 @@
       <button class="toggle-btn active" data-layer="highlights" onclick="toggleLayer('highlights')">⭐ Highlights</button>
       <button class="toggle-btn active" data-layer="food" onclick="toggleLayer('food')">🍴 Essen</button>
       <button class="toggle-btn active" data-layer="swim" onclick="toggleLayer('swim')">🏊 Baden</button>
+      <button class="toggle-btn active" data-layer="saunas" onclick="toggleLayer('saunas')">🧖 Sauna</button>
     </div>
     <button class="locate-btn" id="locateBtn" onclick="locateMe()" title="Meinen Standort anzeigen">📍</button>
     <button class="legend-toggle" onclick="document.querySelector('.map-legend').classList.toggle('open')" title="Legende">ℹ️</button>
@@ -320,6 +322,7 @@
       <div class="legend-item"><div class="legend-dot" style="background:linear-gradient(135deg,#f59e0b,#ef4444)"></div> Highlight / Sehenswürdigkeit</div>
       <div class="legend-item"><div class="legend-dot" style="background:linear-gradient(135deg,#ef4444,#f97316)"></div> Essen & Trinken</div>
       <div class="legend-item"><div class="legend-dot" style="background:linear-gradient(135deg,#06b6d4,#3b82f6)"></div> Badestelle</div>
+      <div class="legend-item"><div class="legend-dot" style="background:linear-gradient(135deg,#f97316,#dc2626)"></div> Sauna</div>
       <div class="legend-item"><div class="legend-line" style="background:#38bdf8"></div> Route (DE)</div>
       <div class="legend-item"><div class="legend-line" style="background:#a78bfa"></div> Route (DK)</div>
     </div>
@@ -375,6 +378,9 @@ const stages = [
     swim: [
       { name: "Badestelle Liebenwalde", desc: "Kleiner See am Ortsrand, perfekt für eine Abkühlung am Nachmittag.", coords: [52.87, 13.23] }
     ],
+    saunas: [
+      { name: "Fit & Fun Zehdenick", desc: "Kleine finnische Trockensauna im Fitnessstudio – Tagesgäste möglich. Schmelzstr. 9.", coords: [52.984, 13.334] }
+    ],
     flex: "Kurze Etappe – ihr könnt auch direkt bis Fürstenberg weiterfahren (~77 km ab Oranienburg)."
   },
   {
@@ -419,6 +425,9 @@ const stages = [
     swim: [
       { name: "Useriner See", desc: "Ruhiger See am Wegesrand, gut zum Baden. Biwakplatz in der Nähe.", coords: [53.24, 13.12] }
     ],
+    saunas: [
+      { name: "Yarvi Saunafloß Priepert", desc: "Winziges Holzofen-Saunafloß (max. 4 Pers.) am Yachthafen Priepert – direkt an der Havel, kurz nach Fürstenberg. Vorher buchen: yarvi.de", coords: [53.216, 13.033] }
+    ],
     flex: "Neustrelitz hat RE5-Bahnanschluss – Abbruch/Pause jederzeit möglich. Hübsche Residenzstadt mit gutem Supermarkt."
   },
   {
@@ -441,6 +450,9 @@ const stages = [
     ],
     swim: [
       { name: "Müritz-Ufer Waren", desc: "Mehrere Badestellen am Stadtufer. Nach 65 km habt ihr euch das verdient!", coords: [53.51, 12.67] }
+    ],
+    saunas: [
+      { name: "Kurzentrum Waren", desc: "Finnische Sauna, Biosauna & Soledampfbad. Tagesgäste willkommen – oft mit Wellness-Anwendung 1h Sauna inkl. Am Kurpark 2.", coords: [53.507, 12.696] }
     ],
     flex: "Längste Etappe – lässt sich gut aufteilen (Biwak Useriner See nach ~35 km). Waren ist DER Ort für einen Ruhetag."
   },
@@ -484,6 +496,9 @@ const stages = [
       { name: "Café Wredenhagen", desc: "Legendäres Café auf dem Weg – hier spielen Musiker, und Künstler stellen aus. Einzigartige Atmosphäre.", icon: "🎵", coords: [53.48, 12.60] }
     ],
     swim: [],
+    saunas: [
+      { name: "Oase Güstrow", desc: "Öffentliche Wasser- & Saunawelt mit mehreren Kabinen und Aufgüssen. Direkt an der Route durch Güstrow (Plauer Chaussee).", coords: [53.786, 12.212] }
+    ],
     flex: "Güstrow ist der kulturelle Höhepunkt der deutschen Etappen. Plant mindestens 2–3 Stunden für die Stadt ein!"
   },
   {
@@ -506,6 +521,9 @@ const stages = [
     swim: [
       { name: "Strand Warnemünde", desc: "Breiter Ostseestrand – letztes Bad in Deutschland bevor es auf die Fähre geht!", coords: [54.185, 12.06] }
     ],
+    saunas: [
+      { name: "aja SEEBAD Warnemünde", desc: "Day-SPA mit finnischer Sauna und Ostseeblick – Tageskarte Bad+Sauna. Zur Promenade 2, nah am Alten Strom.", coords: [54.178, 12.076] }
+    ],
     flex: "Fährzeiten vorher checken! Scandlines fährt alle 2h. Im Juli/Aug online buchen. Warnemünde ist einen halben Tag wert."
   },
   {
@@ -513,7 +531,7 @@ const stages = [
     coords: { from: [54.170, 12.089], to: [54.571, 11.929] },
     route: [[54.170,12.089],[54.25,12.05],[54.35,12.00],[54.45,11.97],[54.571,11.929]],
     desc: "Scandlines Fähre, ca. 2h. Fahrrad ~3 € Aufpreis zum Fußgängerticket (ab ~14 €/P.).",
-    camps: [], highlights: [], food: [], swim: [],
+    camps: [], highlights: [], food: [], swim: [], saunas: [],
     flex: ""
   },
   {
@@ -560,6 +578,9 @@ const stages = [
     swim: [
       { name: "Strand unter Møns Klint", desc: "Über die steilen Treppen runter – fossilienreicher Strand am Fuß der Kreidefelsen. Magisch!", coords: [54.97, 12.54] }
     ],
+    saunas: [
+      { name: "Tøndesauna Klintholm Havn", desc: "Kleine Holz-Fasssauna auf der Mole – Panoramablick Ostsee. Meist nur für Vereinsmitglieder (Vandklubben); vor Ort nach Tageszugang fragen.", coords: [54.953, 12.463] }
+    ],
     flex: "Møn ist DAS Highlight der ganzen Tour – unbedingt 1-2 Extra-Tage einplanen! Kreidefelsen tagsüber, Sternenhimmel nachts."
   },
   {
@@ -580,6 +601,9 @@ const stages = [
     ],
     swim: [
       { name: "Faxe Ladeplads", desc: "Kleiner Küstenort mit Badestrand und altem Kalkhafen.", coords: [55.22, 12.17] }
+    ],
+    saunas: [
+      { name: "Faxe Ladeplads Vinterbadeforening", desc: "Kleine Hafensauna an der Mole – typisch dänisch zum Winterbaden. Meist Vereinsmitgliedschaft; vor Ort nach Tageszugang fragen.", coords: [55.213, 12.160] }
     ],
     flex: "Ruhige Küstenstrecke mit guten Bademöglichkeiten. Guter 'Erholungstag' zwischen den Highlights."
   },
@@ -624,6 +648,9 @@ const stages = [
     swim: [
       { name: "Køge Strand (Søndre Strand)", desc: "Langer Sandstrand südlich der Stadt. Blue-Flag-zertifiziert.", coords: [55.44, 12.20] }
     ],
+    saunas: [
+      { name: "Den Grønne Lagune (Køge Marina)", desc: "Hafensauna + Winterbaden an der Marina. Saison typisch Okt–Apr; Zugang per Saison-Armband am Havnekontor (keine Tageskarten).", coords: [55.470, 12.195] }
+    ],
     flex: "Kurze Etappe – perfekt, um mal auszuschlafen und den Markt zu besuchen. Letzter ruhiger Tag vor Kopenhagen."
   },
   {
@@ -651,6 +678,11 @@ const stages = [
       { name: "Islands Brygge Havnebadet", desc: "Freibad im Hafen mitten in der Stadt! Kostenlos. Sprungturm, Bahnen, Sonnendeck. Perfekter Abschluss der Tour.", coords: [55.66, 12.58] },
       { name: "Amager Strandpark", desc: "Künstliche Lagune und Strand 5 km südöstlich vom Zentrum. Per Rad optimal erreichbar.", coords: [55.65, 12.63] }
     ],
+    saunas: [
+      { name: "La Banchina", desc: "Ikone auf Refshaleøen: kleine holzbefeuerte Sauna direkt am Hafenbad – Café/Weinbar, vorher buchen.", coords: [55.689, 12.611] },
+      { name: "CopenHot", desc: "Outdoor-Spa auf Refshaleøen: Holzsauna, Hot Tubs und Ostsee-Kaltwasser – Sessions online buchbar.", coords: [55.691, 12.624] },
+      { name: "Winter Island (Kalvebod Brygge)", desc: "Schwimmende Sauna-Insel mit mehreren Kabinen mitten im Hafen – Shared/Private Sessions, oft mit Saunagus.", coords: [55.666, 12.569] }
+    ],
     flex: "Ankunft feiern! Kopenhagen ist die Fahrradhauptstadt der Welt – ihr seid zuhause. Bleibt ein paar Tage."
   }
 ];
@@ -659,7 +691,7 @@ const stages = [
 let stageStates = {};
 let expandedStage = null;
 let map, routeLayers = [], markerLayers = {};
-let layerVisibility = { camps: true, highlights: true, food: true, swim: true };
+let layerVisibility = { camps: true, highlights: true, food: true, swim: true, saunas: true };
 
 const STORAGE_KEY = 'radreise-berlin-cph-v1';
 function saveState() {
@@ -847,7 +879,7 @@ function initMap() {
     attribution: '&copy; OpenStreetMap &copy; CARTO',
     maxZoom: 18
   }).addTo(map);
-  markerLayers = { route: [], camps: [], highlights: [], food: [], swim: [] };
+  markerLayers = { route: [], camps: [], highlights: [], food: [], swim: [], saunas: [] };
 }
 
 function createIcon(cls, content) {
@@ -859,16 +891,27 @@ function createIcon(cls, content) {
   });
 }
 
-/** Google Maps URL aus Koordinaten – öffnet Ort in der Maps-App */
-function gmapsUrl(coords) {
-  if (!coords || coords.length < 2) return '#';
-  const [lat, lng] = coords;
-  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+/** Google Maps Place-URL – Ortsname zuerst, damit Fotos & Place-Card erscheinen */
+function gmapsUrl(coords, name) {
+  if (name) {
+    const place = encodeURIComponent(name.trim());
+    // /place/NAME/@lat,lng öffnet die Ortsseite (Bilder, Bewertungen), nicht nur den Pin
+    if (coords && coords.length >= 2) {
+      const [lat, lng] = coords;
+      return `https://www.google.com/maps/place/${place}/@${lat},${lng},16z`;
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${place}`;
+  }
+  if (coords && coords.length >= 2) {
+    const [lat, lng] = coords;
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  return '#';
 }
 
 function mapsLinkHtml(coords, name) {
-  if (!coords || coords.length < 2) return '';
-  return `<a class="maps-link" href="${gmapsUrl(coords)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 In Google Maps öffnen</a>`;
+  if (!name && (!coords || coords.length < 2)) return '';
+  return `<a class="maps-link" href="${gmapsUrl(coords, name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 Auf Google Maps ansehen</a>`;
 }
 
 function toggleLayer(layer) {
@@ -959,6 +1002,15 @@ function renderRoute() {
       if (layerVisibility.swim) m.addTo(map);
       markerLayers.swim.push(m);
     });
+
+    // Sauna markers
+    if (s.saunas) s.saunas.forEach(sa => {
+      if (!sa.coords) return;
+      const m = L.marker(sa.coords, { icon: createIcon('marker-sauna', '🧖') })
+        .bindPopup(`<b class="popup-sauna">${sa.name}</b><br>${sa.desc}<br>${mapsLinkHtml(sa.coords, sa.name)}`);
+      if (layerVisibility.saunas) m.addTo(map);
+      markerLayers.saunas.push(m);
+    });
   });
 
   // Copenhagen finish marker
@@ -1040,6 +1092,22 @@ function renderStages() {
       </div>
     ` : '';
 
+    const saunaHtml = s.saunas && s.saunas.length ? `
+      <div class="detail-section">
+        <h4>🧖 Saunen</h4>
+        ${s.saunas.map(sa => `
+          <div class="camp-option" style="background:rgba(249,115,22,0.08); border:1px solid rgba(249,115,22,0.2);">
+            <div class="camp-icon">🧖</div>
+            <div class="camp-info">
+              <div class="camp-name" style="color:#fb923c;">${sa.name}</div>
+              <div class="camp-desc">${sa.desc}</div>
+              ${mapsLinkHtml(sa.coords, sa.name)}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
     card.innerHTML = `
       <div class="stage-header" onclick="toggleStage('${s.id}')">
         <div class="stage-num">${isFerry ? '⛴' : s.id}</div>
@@ -1063,6 +1131,7 @@ function renderStages() {
         ${highlightsHtml}
         ${foodHtml}
         ${swimHtml}
+        ${saunaHtml}
         ${s.camps && s.camps.length ? `
         <div class="detail-section">
           <h4>🏕 Übernachtung</h4>
@@ -1197,6 +1266,7 @@ function focusStage(id) {
   if (s.highlights) s.highlights.forEach(h => { if (h.coords) bounds.extend(h.coords); });
   if (s.food) s.food.forEach(f => { if (f.coords) bounds.extend(f.coords); });
   if (s.swim) s.swim.forEach(sw => { if (sw.coords) bounds.extend(sw.coords); });
+  if (s.saunas) s.saunas.forEach(sa => { if (sa.coords) bounds.extend(sa.coords); });
   map.fitBounds(bounds.pad(0.3));
 }
 
