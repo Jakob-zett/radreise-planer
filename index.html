@@ -172,11 +172,39 @@
   .toggle-btn:hover { background: #334155; color: #e2e8f0; }
   .toggle-btn.active { background: #334155; color: #e2e8f0; border-color: #64748b; }
 
+  /* Split handle (mobile) */
+  .split-handle {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 10px 0 6px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  .split-handle:active { cursor: grabbing; }
+  .split-handle::before {
+    content: '';
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #475569;
+  }
+
   /* Responsive */
   @media (max-width: 900px) {
     .app { flex-direction: column-reverse; }
     .sidebar { width: 100%; min-width: 0; flex: 1; height: auto; min-height: 0; }
-    .map-container { height: 44dvh; flex: none; }
+    .map-container {
+      height: var(--map-h, 44dvh);
+      flex: none;
+      min-height: 10dvh;
+      max-height: 78dvh;
+    }
+    .map-container.resizing { transition: none; }
+    .map-container:not(.resizing) { transition: height 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+    .split-handle { display: flex; }
     .sidebar-header { padding: 10px 16px; padding-bottom: 10px; }
     .sidebar-header h1 { font-size: 15px; }
     .sidebar-header p { display: none; }
@@ -194,7 +222,7 @@
     .map-legend { display: none; bottom: 60px; right: 12px; padding: 10px 14px; }
     .map-legend.open { display: block; }
     .legend-toggle { display: flex; }
-    .stage-list { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+    .stage-list { padding-bottom: max(8px, env(safe-area-inset-bottom)); overscroll-behavior-y: none; }
   }
 </style>
 </head>
@@ -202,6 +230,7 @@
 
 <div class="app">
   <div class="sidebar">
+    <div class="split-handle" id="splitHandle" aria-label="Karte und Liste verschieben" role="separator" aria-orientation="horizontal"></div>
     <div class="sidebar-header">
       <h1><span>Berlin → Kopenhagen</span> Radreise-Planer</h1>
       <p>Etappen, Übernachtung, Highlights & Essens-Tipps</p>
@@ -300,10 +329,31 @@
 <script>
 // Offizielle Komoot-Collection zum Radfernweg Berlin–Kopenhagen
 const KOMOOT_COLLECTION = 'https://www.komoot.com/collection/1053972/radfernweg-berlin-kopenhagen';
-// Eigene Komoot-Touren pro Etappe hier eintragen (Etappen-ID → Tour-URL), z.B.:
-// 1: 'https://www.komoot.com/tour/123456789',
+// Offizielle Einzel-Etappen aus der Collection (App-Etappen ↔ Komoot-Touren)
 const KOMOOT_STAGE_LINKS = {
+  1: 'https://www.komoot.com/tour/1966217609', // Oranienburg → Zehdenick
+  2: 'https://www.komoot.com/tour/1966218043', // Zehdenick → Fürstenberg
+  3: 'https://www.komoot.com/tour/1966218674', // Fürstenberg → Neustrelitz
+  4: 'https://www.komoot.com/tour/1966219641', // Neustrelitz → Waren
+  5: 'https://www.komoot.com/tour/1966221045', // Waren → Krakow am See
+  6: 'https://www.komoot.com/tour/1966221649', // Krakow am See → Bützow
+  7: 'https://www.komoot.com/tour/1966222803', // Bützow → Rostock / Warnemünde
+  // ferry: keine Rad-Tour – Collection / Scandlines
+  8: 'https://www.komoot.com/tour/1966225030', // Gedser → Nykøbing Falster
+  9: 'https://www.komoot.com/tour/1966226923', // Nykøbing → Stege/Møn
+  10: 'https://www.komoot.com/tour/1966228469', // Stege → Rødvig (via Præstø/Faxe)
+  11: 'https://www.komoot.com/tour/1966228469', // Faxe → Stevns (Fortsetzung Stege–Rødvig)
+  12: 'https://www.komoot.com/tour/1966229317', // Stevns/Rødvig → Køge
+  13: 'https://www.komoot.com/tour/1966229935', // Køge → Kopenhagen
 };
+
+function komootUrl(stageId) {
+  return KOMOOT_STAGE_LINKS[stageId] || KOMOOT_COLLECTION;
+}
+
+function komootLinkHtml(stageId, label = '🧭 Etappe auf Komoot') {
+  return `<a class="maps-link" href="${komootUrl(stageId)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#8ccc57;">${label}</a>`;
+}
 
 const stages = [
   {
@@ -629,8 +679,166 @@ function init() {
   renderRoute();
   updateStats();
   initTabs();
+  initMobileSplit();
   const nextCard = document.querySelector('.stage-card.next');
   if (nextCard) nextCard.scrollIntoView({ block: 'start' });
+}
+
+/* Mobile: scroll/drag adjusts map vs list height toward fullscreen */
+const MAP_H_MIN = 12;
+const MAP_H_MAX = 72;
+const MAP_H_DEFAULT = 44;
+const MAP_H_SNAPS = [MAP_H_MIN, MAP_H_DEFAULT, MAP_H_MAX];
+let mapH = MAP_H_DEFAULT;
+let mapResizeRaf = null;
+
+function isMobileSplit() {
+  return window.matchMedia('(max-width: 900px)').matches;
+}
+
+function pxToDvh(px) {
+  return (px / window.innerHeight) * 100;
+}
+
+function setMapHeight(vh, { animate = false } = {}) {
+  mapH = Math.max(MAP_H_MIN, Math.min(MAP_H_MAX, vh));
+  const mapEl = document.querySelector('.map-container');
+  if (!mapEl) return;
+  if (!animate) mapEl.classList.add('resizing');
+  else mapEl.classList.remove('resizing');
+  document.documentElement.style.setProperty('--map-h', mapH + 'dvh');
+  if (mapResizeRaf) cancelAnimationFrame(mapResizeRaf);
+  mapResizeRaf = requestAnimationFrame(() => {
+    if (map) map.invalidateSize({ animate: false });
+    mapResizeRaf = null;
+  });
+}
+
+function snapMapHeight() {
+  let best = MAP_H_SNAPS[0];
+  let bestDist = Infinity;
+  MAP_H_SNAPS.forEach(s => {
+    const d = Math.abs(s - mapH);
+    if (d < bestDist) { bestDist = d; best = s; }
+  });
+  setMapHeight(best, { animate: true });
+}
+
+function initMobileSplit() {
+  setMapHeight(MAP_H_DEFAULT, { animate: false });
+  document.querySelector('.map-container')?.classList.remove('resizing');
+
+  const lists = [
+    document.getElementById('stageList'),
+    document.getElementById('infoPanel')
+  ].filter(Boolean);
+  const handle = document.getElementById('splitHandle');
+
+  function onListGesture(el, dy) {
+    // dy > 0: Finger nach unten → am Listenanfang Karte vergrößern
+    // dy < 0: Finger nach oben / Scroll runter → Karte erst verkleinern, dann Liste scrollen
+    if (dy < 0 && mapH > MAP_H_MIN) {
+      setMapHeight(mapH + pxToDvh(dy));
+      return true;
+    }
+    if (dy > 0 && el.scrollTop <= 1 && mapH < MAP_H_MAX) {
+      setMapHeight(mapH + pxToDvh(dy));
+      return true;
+    }
+    return false;
+  }
+
+  lists.forEach(el => {
+    let lastY = null;
+    let gesturing = false;
+
+    el.addEventListener('touchstart', e => {
+      if (!isMobileSplit()) return;
+      lastY = e.touches[0].clientY;
+      gesturing = false;
+      document.querySelector('.map-container')?.classList.add('resizing');
+    }, { passive: true });
+
+    el.addEventListener('touchmove', e => {
+      if (!isMobileSplit() || lastY == null) return;
+      const y = e.touches[0].clientY;
+      const dy = y - lastY;
+      lastY = y;
+      if (Math.abs(dy) < 0.5) return;
+      if (onListGesture(el, dy)) {
+        gesturing = true;
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchend', () => {
+      lastY = null;
+      if (gesturing) snapMapHeight();
+      gesturing = false;
+    }, { passive: true });
+
+    let wheelSnapTimer = null;
+    el.addEventListener('wheel', e => {
+      if (!isMobileSplit()) return;
+      // deltaY > 0 = scroll down → shrink map first
+      if (e.deltaY > 0 && mapH > MAP_H_MIN) {
+        setMapHeight(mapH - pxToDvh(e.deltaY));
+        e.preventDefault();
+        clearTimeout(wheelSnapTimer);
+        wheelSnapTimer = setTimeout(snapMapHeight, 160);
+      } else if (e.deltaY < 0 && el.scrollTop <= 1 && mapH < MAP_H_MAX) {
+        setMapHeight(mapH - pxToDvh(e.deltaY));
+        e.preventDefault();
+        clearTimeout(wheelSnapTimer);
+        wheelSnapTimer = setTimeout(snapMapHeight, 160);
+      }
+    }, { passive: false });
+  });
+
+  if (handle) {
+    let dragging = false;
+    let lastY = null;
+
+    const onPointerMove = e => {
+      if (!dragging || lastY == null) return;
+      const dy = e.clientY - lastY;
+      lastY = e.clientY;
+      // Drag handle down → list grows (map shrinks); up → map grows
+      setMapHeight(mapH - pxToDvh(dy));
+    };
+
+    const endDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      lastY = null;
+      handle.releasePointerCapture?.(handle._pointerId);
+      snapMapHeight();
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+    };
+
+    handle.addEventListener('pointerdown', e => {
+      if (!isMobileSplit()) return;
+      dragging = true;
+      lastY = e.clientY;
+      handle._pointerId = e.pointerId;
+      handle.setPointerCapture?.(e.pointerId);
+      document.querySelector('.map-container')?.classList.add('resizing');
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', endDrag);
+      window.addEventListener('pointercancel', endDrag);
+      e.preventDefault();
+    });
+  }
+
+  window.addEventListener('resize', () => {
+    if (!isMobileSplit()) {
+      document.documentElement.style.removeProperty('--map-h');
+      return;
+    }
+    setMapHeight(mapH, { animate: false });
+  });
 }
 
 function initMap() {
@@ -710,7 +918,7 @@ function renderRoute() {
     } else {
       const cls = expandedStage === String(s.id) ? 'marker-active' : 'marker-stage';
       const m = L.marker(s.coords.to, { icon: createIcon(cls, s.id) })
-        .bindPopup(`<b>Etappe ${s.id}: ${s.from} → ${s.to}</b><br>${s.km} km – ${s.desc}<br>${mapsLinkHtml(s.coords.to, s.to)}`)
+        .bindPopup(`<b>Etappe ${s.id}: ${s.from} → ${s.to}</b><br>${s.km} km – ${s.desc}<br>${mapsLinkHtml(s.coords.to, s.to)}<br>${komootLinkHtml(s.id)}`)
         .addTo(map);
       m.on('click', () => toggleStage(s.id));
       markerLayers.route.push(m);
@@ -883,7 +1091,7 @@ function renderStages() {
         <button class="btn btn-done" onclick="event.stopPropagation(); markStage('${s.id}', 'completed')">✓ Geschafft</button>
         <button class="btn btn-rest" onclick="event.stopPropagation(); markStage('${s.id}', 'rest')">☀ Ruhetag hier</button>
         <button class="btn btn-focus" onclick="event.stopPropagation(); focusStage('${s.id}')">🗺 Auf Karte</button>
-        <a class="btn btn-komoot" href="${KOMOOT_STAGE_LINKS[s.id] || KOMOOT_COLLECTION}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🧭 Komoot</a>
+        <a class="btn btn-komoot" href="${komootUrl(s.id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🧭 Komoot-Etappe</a>
         ${state !== 'pending' ? '<button class="btn" onclick="event.stopPropagation(); markStage(\'' + s.id + '\', \'pending\')">↩ Reset</button>' : ''}
       </div>
       ` : ''}
